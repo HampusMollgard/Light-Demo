@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>*{box-sizing:border-box}body{margin:0}</style>
+<title>Ljuset kring kuben</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Figtree:wght@400;600&display=swap">
+<style>
+/* Layout: fullbleed 3D stage, a slim control strip below. Single deliberate studio-dark look (projector-friendly). */
+:root {
+  --bg: #15171c;
+  --panel: #1e2128;
+  --line: #2f3440;
+  --fg: #e9ebf0;
+  --muted: #9aa1b0;
+  --accent: #f2c14e;
+  --display: "Fraunces", Georgia, serif;
+  --body: "Figtree", system-ui, sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; display: flex; flex-direction: column; }
+header { padding-block: 14px 8px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+h1 { font-family: var(--display); font-weight: 700; font-size: 1.5rem; margin: 0; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); font-size: .9rem; }
+#stage { flex: 1; min-height: 320px; position: relative; }
+#stage canvas { display: block; width: 100% !important; height: 100% !important; }
+.controls { background: var(--panel); border-top: 1px solid var(--line); padding-block: 14px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: center; }
+.group { display: flex; align-items: center; gap: 10px; }
+.label { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+button { font: 600 .9rem var(--body); background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#play { background: var(--accent); color: #15171c; border-color: var(--accent); min-width: 92px; }
+input[type=range] { accent-color: var(--accent); width: 130px; }
+.swatches { display: flex; gap: 6px; }
+.sw { width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 2px solid transparent; }
+.sw[aria-pressed=true] { border-color: var(--fg); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Ljuset kring kuben</h1>
+  <p>En lampa vandrar runt en kub – se hur sidornas ljushet och skuggan ändras.</p>
+</header>
+<div id="stage"></div>
+<div class="controls">
+  <button id="play" type="button">Pausa</button>
+  <div class="group"><span class="label">Fart</span><input id="speed" type="range" min="0.1" max="2" step="0.1" value="0.6"></div>
+  <div class="group"><span class="label">Lampans höjd</span><input id="height" type="range" min="0.3" max="5" step="0.1" value="2.2"></div>
+  <div class="group"><span class="label">Kubens färg</span>
+    <div class="swatches" id="swatches">
+      <button class="sw" type="button" data-c="#2f6fdc" aria-label="Blå" aria-pressed="true" style="background:#2f6fdc"></button>
+      <button class="sw" type="button" data-c="#d8342c" aria-label="Röd" aria-pressed="false" style="background:#d8342c"></button>
+      <button class="sw" type="button" data-c="#f0c419" aria-label="Gul" aria-pressed="false" style="background:#f0c419"></button>
+      <button class="sw" type="button" data-c="#2f9e4f" aria-label="Grön" aria-pressed="false" style="background:#2f9e4f"></button>
+      <button class="sw" type="button" data-c="#f2f2f2" aria-label="Vit" aria-pressed="false" style="background:#f2f2f2"></button>
+    </div>
+  </div>
+  <div class="group"><span class="label">Lampans färg</span>
+    <div class="swatches" id="lightsw">
+      <button class="sw" type="button" data-c="#fff4e0" aria-label="Varmvit" aria-pressed="true" style="background:#fff4e0"></button>
+      <button class="sw" type="button" data-c="#ffb347" aria-label="Orange" aria-pressed="false" style="background:#ffb347"></button>
+      <button class="sw" type="button" data-c="#8ec5ff" aria-label="Kallblå" aria-pressed="false" style="background:#8ec5ff"></button>
+    </div>
+  </div>
+  <button id="full" type="button">Helskärm</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+stage.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#15171c');
+const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+camera.position.set(5.5, 4.2, 7);
+camera.lookAt(0, 0.6, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.08));
+
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshStandardMaterial({ color: '#d9d6cf', roughness: 0.95 }));
+floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+
+const cubeMat = new THREE.MeshStandardMaterial({ color: '#2f6fdc', roughness: 0.6 });
+const cube = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), cubeMat);
+cube.position.y = 1; cube.castShadow = true; scene.add(cube);
+
+const lamp = new THREE.PointLight('#fff4e0', 2.2, 30, 1.6);
+lamp.castShadow = true; lamp.shadow.mapSize.set(1024, 1024); lamp.shadow.bias = -0.002;
+const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.15, 24, 16), new THREE.MeshBasicMaterial({ color: '#fff4e0' }));
+lamp.add(bulb); scene.add(lamp);
+
+// orbit path
+const ringGeo = new THREE.RingGeometry(3.98, 4.02, 128);
+const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: '#888', transparent: true, opacity: 0.35, side: THREE.DoubleSide }));
+ring.rotation.x = -Math.PI / 2; scene.add(ring);
+
+let playing = true, angle = 0.8, last = performance.now();
+const speedEl = document.getElementById('speed'), heightEl = document.getElementById('height');
+if (matchMedia('(prefers-reduced-motion: reduce)').matches) speedEl.value = 0.2;
+
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h;
+  camera.position.setLength(w < 500 ? 12 : 9.8);
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage); resize();
+
+function tick(now) {
+  const dt = (now - last) / 1000; last = now;
+  if (playing) angle += dt * parseFloat(speedEl.value);
+  const y = parseFloat(heightEl.value);
+  lamp.position.set(Math.cos(angle) * 4, y, Math.sin(angle) * 4);
+  ring.position.y = y;
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+const play = document.getElementById('play');
+play.onclick = () => { playing = !playing; play.textContent = playing ? 'Pausa' : 'Spela'; };
+
+function swatchGroup(id, apply) {
+  const g = document.getElementById(id);
+  g.addEventListener('click', e => {
+    const b = e.target.closest('.sw'); if (!b) return;
+    g.querySelectorAll('.sw').forEach(s => s.setAttribute('aria-pressed', s === b));
+    apply(b.dataset.c);
+  });
+}
+swatchGroup('swatches', c => cubeMat.color.set(c));
+swatchGroup('lightsw', c => { lamp.color.set(c); bulb.material.color.set(c); });
+
+document.getElementById('full').onclick = () => {
+  const p = document.documentElement.requestFullscreen?.(); p && p.catch(() => {});
+};
+</script>
+</body>
+</html>
